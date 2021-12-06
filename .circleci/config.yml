@@ -42,6 +42,29 @@ commands:
             fi
 
 jobs:
+  integration-test-templates:
+    parameters:
+      runner:
+        type: executor
+        default: cimg
+    executor: <<parameters.runner>>
+    steps:
+      - slack/notify:
+          custom: | 
+            {
+                "text": "",
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "❌ Failed in build #${CIRCLE_BUILD_NUM} of <$CIRCLE_BUILD_URL|$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME> (<https://app.circleci.com/pipelines/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME?branch=$CIRCLE_BRANCH|$CIRCLE_BRANCH>) \n- $CIRCLE_USERNAME: $CIRCLE_JOB (<$CIRCLE_BUILD_URL|${CIRCLE_WORKFLOW_ID:0:7}>)"
+                        }
+                    }
+                ]
+            }  
+          event: fail
+          
   build-frontend:
     docker:
       - image: circleci/node:13.8.0
@@ -63,13 +86,31 @@ jobs:
     docker:
       - image: circleci/node:13.8.0
     steps:
+      - run: echo "Build the backend"
       - checkout
       - restore_cache:
           keys: [backend-build]
       - run:
+          name: prepare environment for backend build
+          command: |
+            cat \<< EOF > backend/.env
+            ENVIRONMENT=development
+            VERSION=1
+            TYPEORM_CONNECTION=postgres
+            TYPEORM_MIGRATIONS_DIR=./src/migrations
+            TYPEORM_ENTITIES=./src/modules/domain/**/*.entity.ts
+            TYPEORM_MIGRATIONS=./src/migrations/*.ts
+            TYPEORM_HOST=${TYPEORM_HOST}
+            TYPEORM_PORT=${TYPEORM_PORT}
+            TYPEORM_USERNAME=${TYPEORM_USERNAME}
+            TYPEORM_PASSWORD=${TYPEORM_PASSWORD}
+            TYPEORM_DATABASE=${TYPEORM_DATABASE}
+            EOF
+      - run:
           name: Back-end build
           command: |
             cd backend
+            touch .env
             npm install
             npm run build
       - save_cache:
