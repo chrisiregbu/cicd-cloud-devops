@@ -29,8 +29,6 @@ commands:
           name: Revert migrations
           when: on_fail
           command: |
-            # Your Memstash GET URL code goes here
-            # See an example below
             SUCCESS=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" --request GET https://api.memstash.io/values/migration_<< parameters.workflow_id >>)
             if (( $SUCCESS == 1 ));
             then
@@ -131,7 +129,6 @@ jobs:
           command: |
             cd frontend
             npm install
-            # npm install oauth-sign@^0.9.0
             npm audit fix --audit-level=critical --force
             npm audit --audit-level=critical
             # If the "npm audit fix" command above could not fix all critical vulnerabilities, try “npm audit fix --force” again
@@ -215,14 +212,11 @@ jobs:
           command: |
             apk add --update ansible
             ansible --version
-            # Your code here
       - run:
           name: Configure server
           working_directory: ./.circleci/ansible
           command: |
             ansible-playbook -i inventory.txt configure-server.yml
-            # Your code here
-
       - run:
           name: prepare environment for backend build
           command: |
@@ -237,7 +231,6 @@ jobs:
             echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> backend/.env
             echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> backend/.env
             echo TYPEORM_HOST=$TYPEORM_HOST >> backend/.env
-
       - persist_to_workspace:
           root: ./
           paths:
@@ -254,14 +247,25 @@ jobs:
       - checkout
       - restore_cache:
           keys: [backend-build]
-
       - run:
-          name: Install AWS CLI dependencies
+          name: prepare environment for backend build
           command: |
-            sudo apt-get update && sudo apt-get install -yy less
-            # sudo apt install python-pip jq curl
-            # sudo pip install awscli
-
+            echo "Preparing environment for backend build"
+            echo ENVIRONMENT=$ENVIRONMENT >> backend/.env
+            echo TYPEORM_CONNECTION=$TYPEORM_CONNECTION >> backend/.env
+            echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> backend/.env
+            echo TYPEORM_ENTITIES=$TYPEORM_ENTITIES >> backend/.env
+            echo TYPEORM_MIGRATIONS=$TYPEORM_MIGRATIONS >> backend/.env
+            echo TYPEORM_HOST=$TYPEORM_HOST >> backend/.env
+            echo TYPEORM_PORT=$TYPEORM_PORT >> backend/.env
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> backend/.env
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> backend/.env
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> backend/.env
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt update
+            sudo apt install -y awscli
       - run:
           name: Run migrations
           command: |
@@ -271,22 +275,24 @@ jobs:
             npm run migrations:revert
             npm run migrations > migrations_dump.txt
             cat migrations_dump.txt
-
       - run:
           name: Send migration results to memstash
           command: |
             cd backend
-            echo "CIRCLE_WORKFLOW_ID: ${CIRCLE_WORKFLOW_ID:0:7}"
-            if grep -q "has been executed successfully." migrations_dump.txt
+            if grep -q "has been executed successfully." ~/project/backend/migrations_dump.txt
             then
               echo "Migration was successful, updating memstash..."
-              curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" --request PUT --data "1" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID:0:7}
+              curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" \
+                --request PUT \
+                --data "1" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID:0:7}
             else
               echo "Migration failed, Maybe the database already exists. Verify setup!"
-              curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" --request PUT --data "0" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID:0:7}  
+              curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID:0:7}" \
+                --request PUT 
+                --data "0" https://api.memstash.io/values/migration_${CIRCLE_WORKFLOW_ID:0:7}  
             fi
       - persist_to_workspace:
-          root: ./
+          root: ~/project
           paths:
             - backend      
       - destroy-environment:
@@ -302,31 +308,32 @@ jobs:
       - run:
           name: Install dependencies
           command: |
+            yum -y install tar 
+            yum -y install gzip
             curl -sL https://rpm.nodesource.com/setup_lts.x | bash -
             yum -y install nodejs
-            yum -y install tar gzip
       - attach_workspace:
           at: ./      
       - run:
           name: Get backend url
           command: |
-            export BACKEND_IP=$(curl -H "token: c47d93a2-6701-41a5-8842-e115b7714054" --request GET https://api.memstash.io/values/backendipurl)
+            export BACKEND_IP=$(curl -H "token: c47d93a2-6701-41a5-8842-e115b7714054" \
+              --request GET https://api.memstash.io/values/backendipurl)
+
             export API_URL="http://${BACKEND_IP}:3030"
             echo "API_URL = ${API_URL}"
+
             echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
-            cat frontend/.env             
-            
+            echo NODE_ENV=development >> "frontend/.env"
+            cat frontend/.env                        
       - run:
           name: Deploy frontend objects
           command: |
             cd frontend
             npm install
             npm run build
-            cat .env
             tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
             aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
-            # your code here
-
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
@@ -338,36 +345,27 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ["4f:bc:f6:2f:05:01:fc:7a:72:d3:b1:2c:56:4a:94:a3"]
+          fingerprints: # This is your one, you need to replace mine below with yours: ["4f:bc:f6:2f:05:01:fc:7a:72:d3:b1:2c:56:4a:94:a3"]
+            - "ef:69:64:e9:df:d5:5c:23:6f:ba:09:88:ef:ba:39:89"
       - restore_cache:
           keys: [backend-build]
-
       - attach_workspace:
           at: ./   
       - run:
           name: Install dependencies
           command: |
-            # apk add --update tar gzip ansible nodejs npm
-            # pip install awscli
             apk update
             apk add --update ansible aws-cli openssh-client tar
-            # your code here
       - run:
           name: Deploy backend
           command: |
-            # cd backend
-            # npm install
-            # npm run build
-            # cd ..
-            # Zip the directory
+            cd backend
+            cd ..
             tar -C backend -czvf artifact.tar.gz .
-            ls -la
             cd .circleci/ansible
             echo "Contents  of the inventory.txt file is -------"
             cat inventory.txt
             ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.txt deploy-backend.yml
-            # your code here
-
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
@@ -375,38 +373,39 @@ jobs:
 
   smoke-test:
     docker:
-      - image: python:3.9.0-alpine
+      - image:  circleci/node:13.8.0 # python:3.9.0-alpine
     steps:
       - checkout
       - run:
           name: Install dependencies
           command: |
-            apk add --update curl nodejs npm
-            pip install awscli
-            # your code here
+            sudo apt update
+            sudo apt install -y awscli
+            sudo apt install -y python3 ansible
       - run:
           name: Get backend url
           command: |
-            export BACKEND_IP=$(curl -H "token: c47d93a2-6701-41a5-8842-e115b7714054" --request GET https://api.memstash.io/values/backendipurl)
-            
-            # your code here
+            curl -H "token: c47d93a2-6701-41a5-8842-e115b7714054" \
+              --request GET https://api.memstash.io/values/backendipurl > backend-url.txt
       - run:
           name: Backend smoke test.
           command: |
+            BACKEND_IP=$(cat backend-url.txt)
             export API_URL="http://${BACKEND_IP}:3030"
             echo "${API_URL}"
             if curl "${API_URL}/api/status" | grep "ok"
             then
-              return 0
+              exit 0
             else
-              return 1
+              exit 1
             fi
-            # your code here
       - run:
           name: Frontend smoke test.
           command: |
-            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-east-1.amazonaws.com/#/employees"            
-            echo ${URL} 
+            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-${AWS_DEFAULT_REGION}.amazonaws.com/#/employees"            
+            
+            echo ${URL}
+
             if curl -s ${URL} | grep "Welcome"
             then
               # Change this to 0 after the job fails
@@ -414,8 +413,6 @@ jobs:
             else
                 return 1
             fi
-            # your code here
-
   cloudfront-update:
     docker:
       - image: circleci/node:13.8.0
@@ -469,14 +466,14 @@ workflows:
               only: master
       - configure-infrastructure:
           requires: [deploy-infrastructure]
-      # - run-migrations:
-      #     requires: [configure-infrastructure]
-      # - deploy-frontend:
-      #     requires: [run-migrations]
-      # - deploy-backend:
-      #     requires: [run-migrations]
-      # - smoke-test:
-      #     requires: [deploy-backend, deploy-frontend]
+      - run-migrations:
+          requires: [configure-infrastructure]
+      - deploy-frontend:
+          requires: [run-migrations]
+      - deploy-backend:
+          requires: [run-migrations]
+      - smoke-test:
+          requires: [deploy-backend, deploy-frontend]
       # - cloudfront-update:
       #     requires: [smoke-test]
       # - cleanup:
