@@ -1,7 +1,6 @@
 version: 2.1
 
 orbs:
-  slack: circleci/slack@4.5.0
   aws-cli: circleci/aws-cli@2.0.3 
 
 commands:
@@ -206,7 +205,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: 
+          fingerprints: # Replace below fingerprints with yours
             - "ef:69:64:e9:df:d5:5c:23:6f:ba:09:88:ef:ba:39:89"
       - attach_workspace:
           at: ./
