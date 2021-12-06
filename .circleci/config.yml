@@ -189,7 +189,9 @@ jobs:
 
             cat .circleci/ansible/inventory.txt
 
-            curl -H "Content-Type: text/plain" -H "token: c47d93a2-6701-41a5-8842-e115b7714054" --request PUT --data "${BACKEND_IP}" https://api.memstash.io/values/backendipurl
+            curl -H "Content-Type: text/plain" -H "token: c47d93a2-6701-41a5-8842-e115b7714054" \
+              --request PUT \
+              --data "${BACKEND_IP}" https://api.memstash.io/values/backendipurl
 
       - persist_to_workspace:
           root: ./
@@ -462,13 +464,13 @@ workflows:
           requires: [build-backend]
       - scan-frontend:
           requires: [build-frontend]
-      # - deploy-infrastructure:
-      #     requires: [test-frontend, test-backend, scan-frontend, scan-backend]
-      #     filters:
-      #       branches:
-      #         only: master
-      # - configure-infrastructure:
-      #     requires: [deploy-infrastructure]
+      - deploy-infrastructure:
+          requires: [test-frontend, test-backend, scan-frontend, scan-backend]
+          filters:
+            branches:
+              only: master
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
       # - run-migrations:
       #     requires: [configure-infrastructure]
       # - deploy-frontend:
