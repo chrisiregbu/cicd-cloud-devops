@@ -19,7 +19,6 @@ commands:
             aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.workflow_id >>
             aws s3 rm s3://udapeople-<< parameters.workflow_id >> --recursive
             aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.workflow_id >>
-            # Your code here
 
   revert-migrations:
     description: Revert the last migration if successfully run in the current workflow.
@@ -40,31 +39,7 @@ commands:
               npm install
               npm run migration:revert
             fi
-
 jobs:
-  integration-test-templates:
-    parameters:
-      runner:
-        type: executor
-        default: cimg
-    executor: <<parameters.runner>>
-    steps:
-      - slack/notify:
-          custom: | 
-            {
-                "text": "",
-                "blocks": [
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": "❌ Failed in build #${CIRCLE_BUILD_NUM} of <$CIRCLE_BUILD_URL|$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME> (<https://app.circleci.com/pipelines/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME?branch=$CIRCLE_BRANCH|$CIRCLE_BRANCH>) \n- $CIRCLE_USERNAME: $CIRCLE_JOB (<$CIRCLE_BUILD_URL|${CIRCLE_WORKFLOW_ID:0:7}>)"
-                        }
-                    }
-                ]
-            }  
-          event: fail
-          
   build-frontend:
     docker:
       - image: circleci/node:13.8.0
@@ -161,8 +136,8 @@ jobs:
             npm audit fix --audit-level=critical --force
             npm audit --audit-level=critical
             # If the "npm audit fix" command above could not fix all critical vulnerabilities, try “npm audit fix --force” again
-      - slack/notify:
-          template: basic_fail_1
+      #- slack/notify:
+          #template: basic_fail_1
 
   scan-backend:
     docker:
@@ -224,22 +199,17 @@ jobs:
 
       - destroy-environment:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
-      # Here's where you will add some code to rollback on failure
 
   configure-infrastructure:
     docker:
       - image: python:3.9.0-alpine
-      # Docker image here that supports Ansible
     steps:
       - checkout
-      # Checkout code from git
       - add_ssh_keys:
           fingerprints: 
             - "ef:69:64:e9:df:d5:5c:23:6f:ba:09:88:ef:ba:39:89"
-      # Add ssh keys with fingerprint
       - attach_workspace:
           at: ./
-      # attach workspace
       - run:
           name: Install dependencies
           working_directory: ./.circleci/ansible
@@ -277,12 +247,10 @@ jobs:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}  
-      # Here's where you will add some code to rollback on failure
 
   run-migrations:
     docker:
       - image: circleci/node:13.8.0
-      # Docker image here that supports NodeJS
     steps:
       - checkout
       - restore_cache:
@@ -326,15 +294,12 @@ jobs:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
           workflow_id: ${CIRCLE_WORKFLOW_ID:0:7}    
-      # Here's where you will add some code to rollback on failure
 
   deploy-frontend:
     docker:
       - image: amazon/aws-cli
-      # Docker image here that supports AWS CLI
     steps:
       - checkout
-      # Checkout code from git
       - run:
           name: Install dependencies
           command: |
